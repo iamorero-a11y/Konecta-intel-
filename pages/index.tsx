@@ -36,32 +36,40 @@ type ModuleState = {
 }
 
 
+function renderInline(line: string) {
+  if (!line.includes('**')) return line
+  return line.split(/(\*\*.*?\*\*)/).map((part, j) =>
+    /^\*\*.*\*\*$/.test(part)
+      ? <strong key={j} style={{ color: '#E2E8F0' }}>{part.replace(/\*\*/g, '')}</strong>
+      : part
+  )
+}
+
 function formatContent(text: string) {
   const lines = text.split('\n')
   return lines.map((line, i) => {
     line = line.trim()
-    if (!line) return <div key={i} style={{ height: 5 }} />
+    if (!line || line === '---' || line === '–') return <div key={i} style={{ height: 5 }} />
+    // markdown headings: #, ##, ###
+    const headingMatch = line.match(/^#{1,3}\s+(.+)/)
+    if (headingMatch) {
+      const title = headingMatch[1].replace(/\*\*/g, '').replace(/[\u{1F000}-\u{1FFFF}]/gu, '').trim()
+      return <div key={i} className="contentSectionTitle">{title}</div>
+    }
+    // bold-only line as section title
     if (/^\*\*[^*]+\*\*$/.test(line)) {
       return <div key={i} className="contentSectionTitle">{line.replace(/\*\*/g, '')}</div>
     }
-    const hasStrong = line.includes('**')
-    const rendered = hasStrong
-      ? line.split(/(\*\*.*?\*\*)/).map((part, j) =>
-          /^\*\*.*\*\*$/.test(part)
-            ? <strong key={j} style={{ color: '#E2E8F0' }}>{part.replace(/\*\*/g, '')}</strong>
-            : part
-        )
-      : line
+    // bullet points
     if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
-      const content = hasStrong ? rendered : line.slice(2)
       return (
         <div key={i} className="contentBullet">
           <span className="contentBulletArrow">▸</span>
-          <span className="contentBulletText">{content}</span>
+          <span className="contentBulletText">{renderInline(line.slice(2))}</span>
         </div>
       )
     }
-    return <p key={i} className="contentPara">{rendered}</p>
+    return <p key={i} className="contentPara">{renderInline(line)}</p>
   })
 }
 
@@ -112,8 +120,11 @@ export default function Home() {
     }
   }
 
-  function generateAll() {
-    MODULES.forEach((m, i) => setTimeout(() => fetchModule(m.id), i * 300))
+  async function generateAll() {
+    for (let i = 0; i < MODULES.length; i++) {
+      await fetchModule(MODULES[i].id)
+      if (i < MODULES.length - 1) await new Promise(r => setTimeout(r, 30000))
+    }
   }
 
   return (
